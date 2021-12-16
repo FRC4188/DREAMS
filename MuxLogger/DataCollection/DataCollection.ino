@@ -1,9 +1,9 @@
 #include <RTClib.h>
-#include <SDnew.h>
+#include <SD.h>
 #include <Wire.h>
 #include <MuxShield.h>
 
-#define CHANNELS 3//48 // Channels of data to log.
+#define CHANNELS 48 // Channels of data to log.
 #define LOG_INTERVAL  1000 // Milliseconds between entries.
 #define ECHO_TO_SERIAL // Define to print all data to Serial.
 //#define WAIT_TO_START // Define to wait for user input before logging.
