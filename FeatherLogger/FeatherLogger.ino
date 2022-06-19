@@ -9,10 +9,12 @@
 #define ACCELZ_PIN A2
 #define PRESSURE_PIN A3
 
-#define UNSET_PIN 9
+#define UNSET_PIN 5
 #define SET_PIN 6
 
 #define WROTE 8
+
+#define TIME 13
 
 float TRIGGER_PRESSURE = 0.3;//0.025; //atm
 
@@ -31,7 +33,7 @@ void setup() {
     pinMode(UNSET_PIN, OUTPUT);
 
     digitalWrite(UNSET_PIN, HIGH);
-    delay(500);
+    delay(100);
     digitalWrite(UNSET_PIN, LOW);
 
     initSD();
@@ -55,15 +57,10 @@ void loop() {
     float accelz = readAccel(ACCELZ_PIN);
     float pressure = readPressure(PRESSURE_PIN);
 
-    if (pressure < TRIGGER_PRESSURE) {
-        digitalWrite(SET_PIN, HIGH);
-        delay(500);
-        digitalWrite(SET_PIN, LOW);
-    } else {
-        digitalWrite(UNSET_PIN, HIGH);
-        delay(500);
-        digitalWrite(UNSET_PIN, LOW);
-    }
+    
+
+    // byPressure(pressure);
+    byTime(time);
 
     Serial.print(time);
     Serial.print(", ");
@@ -130,3 +127,38 @@ float readAccel(uint8_t pin) {
     return -0.500 * (float) analogRead(pin) + 262.500;
 }
 
+
+void byPressure(float pressure) {
+    if (pressure < TRIGGER_PRESSURE) {
+        digitalWrite(SET_PIN, HIGH);
+        delay(100);
+        digitalWrite(SET_PIN, LOW);
+    } else {
+        digitalWrite(UNSET_PIN, HIGH);
+        delay(100);
+        digitalWrite(UNSET_PIN, LOW);
+    }
+}
+
+void byTime(int time) {
+    timeIndicator(time);
+    
+    if (time == 120) {
+        digitalWrite(SET_PIN, HIGH);
+        delay(100);
+        digitalWrite(SET_PIN, LOW);
+        Serial.println("LAUNCH");
+    } else if (time == 125) {
+        digitalWrite(UNSET_PIN, HIGH);
+        delay(100);
+        digitalWrite(UNSET_PIN, LOW);
+    }
+}
+
+void timeIndicator(int time) {
+    if (time % 30 == 0) {
+        digitalWrite(TIME, HIGH);
+        delay(500);
+        digitalWrite(TIME, LOW);
+    }
+} 
