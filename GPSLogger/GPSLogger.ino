@@ -1,110 +1,134 @@
+#include <SPI.h>
 #include <Adafruit_GPS.h>
 #include <SoftwareSerial.h>
 #include <SD.h>
-#include <RTClib.h>
+#include <avr/sleep.h>
 
-// The serial connection from the GPS module is on pins 8 and 7.
 SoftwareSerial mySerial(8, 7);
+Adafruit_GPS GPS(&mySerial);
 
-//Create logfile to save data.
+// Set GPSECHO to 'false' to turn off echoing the GPS data to the Serial console
+// Set to 'true' if you want to debug and listen to the raw GPS sentences
+#define GPSECHO  true
+/* set to true to only log to SD when GPS has a fix, for debugging, keep it false */
+#define LOG_FIXONLY false
+
+
+// Set the pins used
+#define chipSelect 10
+#define ledPin 13
+
 File logfile;
-// Record the starting time so that the RTC time is referenced to the start of the program.
-DateTime startTime;
 
-// Create an RTC object to more accurately record time.
-RTC_Millis rtc;
-
-#define LOG_INTERVAL  1000 // Milliseconds between entries.
-#define ECHO_TO_SERIAL // Print everything logged to the Serial Monitor.
-//#define WAIT_TO_START // Wait for sent data over Serial to begin logging.
-
-#define PMTK_SET_NMEA_UPDATE_1HZ  "$PMTK220,1000*1F"
-#define PMTK_SET_NMEA_UPDATE_5HZ  "$PMTK220,200*2C"
-#define PMTK_SET_NMEA_UPDATE_10HZ "$PMTK220,100*2F"
-
-// turn on only the second sentence (GPRMC)
-#define PMTK_SET_NMEA_OUTPUT_RMCONLY "$PMTK314,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*29"
-// turn on GPRMC and GGA
-#define PMTK_SET_NMEA_OUTPUT_RMCGGA "$PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*28"
-// turn on ALL THE DATA
-#define PMTK_SET_NMEA_OUTPUT_ALLDATA "$PMTK314,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0*28"
-// turn off output
-#define PMTK_SET_NMEA_OUTPUT_OFF "$PMTK314,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*28"
-
-#define PMTK_Q_RELEASE "$PMTK605*31"
+// blink out an error code
+void error(uint8_t errno) {
+  while(1) {
+    uint8_t i;
+    for (i=0; i<errno; i++) {
+      digitalWrite(ledPin, HIGH);
+      delay(100);
+      digitalWrite(ledPin, LOW);
+      delay(100);
+    }
+    for (i=errno; i<10; i++) {
+      delay(200);
+    }
+  }
+}
 
 void setup() {
-  Serial.begin(57600); // this baud rate doesn't actually matter!
-  mySerial.begin(9600);
-  delay(2000);
-  Serial.println("Get version!");
-  mySerial.println(PMTK_Q_RELEASE);
+  // for Leonardos, if you want to debug SD issues, uncomment this line
+  // to see serial output
+  //while (!Serial);
 
-  // you can send various commands to get it started
-  //mySerial.println(PMTK_SET_NMEA_OUTPUT_RMCGGA);
-  mySerial.println(PMTK_SET_NMEA_OUTPUT_ALLDATA);
+  // connect at 115200 so we can read the GPS fast enough and echo without dropping chars
+  // also spit it out
+  Serial.begin(115200);
+  Serial.println("\r\nUltimate GPSlogger Shield");
+  pinMode(ledPin, OUTPUT);
 
-  mySerial.println(PMTK_SET_NMEA_UPDATE_1HZ);
-
-  
-#ifdef WAIT_TO_START
-  Serial.println("Send any character to start");
-  while (!Serial.available());
-#endif //WAIT_TO_START
-
-  Serial.print("Initializing SD card...");
+  // make sure that the default chip select pin is set to
+  // output, even if you don't use it:
   pinMode(10, OUTPUT);
-  
-  if (!SD.begin(10)) {
-    Serial.println("Card failed, or not present");
-    return;
-  }
-  Serial.println("card initialized.");
 
-  // create a new file
-  char filename[] = "GPSLOG00.txt";
+  if (!SD.begin(chipSelect)) {
+    Serial.println("Card init. failed!");
+    error(2);
+  }
+  char filename[15];
+  strcpy(filename, "GPSLOG00.CSV");
   for (uint8_t i = 0; i < 100; i++) {
-    filename[6] = i/10 + '0';
-    filename[7] = i%10 + '0';
+    filename[6] = '0' + i/10;
+    filename[7] = '0' + i%10;
+    // create if does not exist, do not open existing, write, sync after write
     if (! SD.exists(filename)) {
-      // only open a new file if it doesn't exist
-      logfile = SD.open(filename, FILE_WRITE); 
-      break;  // leave the loop!
+      break;
     }
   }
+
+  logfile = SD.open(filename, FILE_WRITE);
   
-  Serial.print("Logging to: ");
+  if( ! logfile ) {
+    Serial.print("Couldnt create ");
+    Serial.println(filename);
+    error(3);
+  }
+  Serial.print("Writing to ");
   Serial.println(filename);
 
-  Wire.begin();
+  // connect to the GPS at the desired rate
+  GPS.begin(9600);
 
-  rtc.begin(DateTime(F(__DATE__), F(__TIME__)));
+  // uncomment this line to turn on RMC (recommended minimum) and GGA (fix data) including altitude
+  GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
+  // uncomment this line to turn on only the "minimum recommended" data
+  //GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCONLY);
+  // For logging data, we don't suggest using anything but either RMC only or RMC+GGA
+  // to keep the log files at a reasonable size
+  // Set the update rate
+  GPS.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ);   // 100 millihertz (once every 10 seconds), 1Hz or 5Hz update rate
 
-  // Set the startTime object to the current time at the beginning of the program.
-  startTime = rtc.now().unixtime();
- }
+  // Turn off updates on antenna status, if the firmware permits it
+  GPS.sendCommand(PGCMD_NOANTENNA);
 
+  // the nice thing about this code is you can have a timer0 interrupt go off
+  // every 1 millisecond, and read data from the GPS for you. that makes the
+  // loop code a heck of a lot easier!
+
+  Serial.println("Ready!");
+}
 
 void loop() {
-  // Get the time at the loop.
-  DateTime now = rtc.now().unixtime();
 
-  // Relay any user input to the GPS Shield.
-  if (Serial.available()) {
-   char c = Serial.read();
-   Serial.write(c);
-   mySerial.write(c);
-  }
-  // If there is data coming in through the software serial, send it straight to the logFile and Serial connections.
-  if (mySerial.available()) {
-    char c = mySerial.read();
-    logfile.print(c);
-    // If the GPS data just ended a line, log the time of the next line.
-    if (c == '\n') {
-      logfile.print((now - startTime).seconds());
-      logfile.print(",");
+  // read data from the GPS in the 'main loop'
+  char c = GPS.read();
+  // if you want to debug, this is a good time to do it!
+  if (GPSECHO)
+    if (c) Serial.print(c);
+
+  // if a sentence is received, we can check the checksum, parse it...
+  if (GPS.newNMEAreceived()) {
+    // a tricky thing here is if we print the NMEA sentence, or data
+    // we end up not listening and catching other sentences!
+    // so be very wary if using OUTPUT_ALLDATA and trying to print out data
+    char *stringptr = GPS.lastNMEA();
+    if (!GPS.parse(stringptr))   // this also sets the newNMEAreceived() flag to false
+      return;  // we can fail to parse a sentence in which case we should just wait for another
+
+    // Sentence parsed!
+    Serial.println("OK");
+    if (LOG_FIXONLY && !GPS.fix) {
+      Serial.print("No Fix");
+      return;
     }
-    Serial.write(c);
+
+    // Rad. lets log it!
+    Serial.println("Log");
+
+    uint8_t stringsize = strlen(stringptr);
+    if (stringsize != logfile.write((uint8_t *)stringptr, stringsize))    //write the string to the SD file
+        error(4);
+    if (strstr(stringptr, "RMC") || strstr(stringptr, "GGA"))   logfile.flush();
+    Serial.println();
   }
-  logfile.flush();
 }
