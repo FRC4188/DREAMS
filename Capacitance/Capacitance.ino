@@ -86,9 +86,6 @@ void loop()
     // log milliseconds since starting
     uint32_t m = millis();
     logfile.print(m / 1000.0); // seconds since start
-    #ifdef ECHO_TO_SERIAL
-      Serial.print(m / 1000.0); // seconds since start
-    #endif
   
     for (int i=0;i<5;i++)        //measure time duration five times
     {
@@ -104,8 +101,7 @@ void loop()
     logfile.print(",");
     logfile.println(capacitance);
     logfile.flush();
-#ifndef ECHO_TO_SERIAL
-    Serial.print(",");
+
     Serial.println(capacitance);
-#endif
+
 }

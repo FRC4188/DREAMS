@@ -1,0 +1,5 @@
+{
+    "sketch": "I2C_MuxShieldLogger\\Single_Mux\\DataLogger\\DataLogger.ino",
+    "board": "arduino:avr:uno",
+    "port": "COM14"
+}
