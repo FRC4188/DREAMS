@@ -26,8 +26,7 @@ void setup() {
 }
 
 void loop() {
-    for (int i = 0; i < sizeof(ids); i++) {
-        int id = ids[i];
+    for (int id : ids) {
         Serial.print(id);
         Serial.print("|");
 
