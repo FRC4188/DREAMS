@@ -35,7 +35,7 @@ void loop() {
 
         for (int j = 0; j < 3; j++) {
             requestData(id, j);
-            Wire.requestFrom(8, CHANNELS * 2);
+            Wire.requestFrom(id, CHANNELS * 2);
             for (int k = 0; k < CHANNELS; k++) {
                 int num = convertData();
                 vals[k + (j * 16)] = num;
