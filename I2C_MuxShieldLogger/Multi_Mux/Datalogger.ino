@@ -11,7 +11,7 @@ char filename[15];
 
 int vals[TOTAL_CHANNELS];
 
-const int ids[] = {1, 2, 3, 4};
+const int ids[] = {1, 2, 3};
 
 void setup() {
     Serial.begin(9600);
