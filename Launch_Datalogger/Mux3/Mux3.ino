@@ -25,7 +25,7 @@ int cols = sizeof(vals[0]) / sizeof(vals[0][0]);
 int row;
 
 void loop() {
-    #ifdef PRINT
+    readMux();
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
             Serial.print(vals[i][j]);
@@ -34,11 +34,9 @@ void loop() {
     Serial.print(" ");
     }
     Serial.println();
-    #endif
 }
 
 void requestEvent() {
-    readMux();
     sendData();
 }
 
